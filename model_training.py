@@ -1,3 +1,4 @@
+from gensim.models.wrappers.ldamallet import malletmodel2ldamodel
 import nltk
 import re
 import numpy as np
@@ -9,6 +10,8 @@ import gensim
 import gensim.corpora as corpora
 from gensim.utils import simple_preprocess
 from gensim.models import CoherenceModel
+from gensim.test.utils import get_tmpfile
+from gensim.corpora import MalletCorpus
 
 # spacy for lemmatization
 import spacy
@@ -66,12 +69,13 @@ if __name__ == "__main__":
     )
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     stop_words = stopwords.words("english")
-    stop_words.extend(["from", "subject", "re", "edu", "use"])
+    stop_words.extend(["from", "subject", "re", "edu", "use", "http"])
 
-    df = pd.read_json(
-        "https://raw.githubusercontent.com/selva86/datasets/master/newsgroups.json"
-    )
-    data = df.content.values.tolist()
+    # df = pd.read_json(
+    #     "https://raw.githubusercontent.com/selva86/datasets/master/newsgroups.json"
+    # )
+    df = pd.read_csv("./reddit_dataset.csv")
+    data = df["text"].tolist()
 
     data = [re.sub("\S*@\S*\s?", "", sent) for sent in data]
     data = [re.sub("\s+", " ", sent) for sent in data]
@@ -79,7 +83,7 @@ if __name__ == "__main__":
 
     data_words = list(sent_to_words(data))
 
-    # print(data_words[:1])
+    print(data_words[:1])
 
     bigram = gensim.models.Phrases(
         data_words, min_count=5, threshold=100
@@ -91,7 +95,7 @@ if __name__ == "__main__":
     trigram_mod = gensim.models.phrases.Phraser(trigram)
 
     # See trigram example
-    # print(trigram_mod[bigram_mod[data_words[0]]])
+    print(trigram_mod[bigram_mod[data_words[0]]])
 
     data_words_nostops = remove_stopwords(data_words)
     data_words_bigrams = make_bigrams(data_words_nostops)
@@ -102,7 +106,7 @@ if __name__ == "__main__":
         data_words_bigrams, allowed_postags=["NOUN", "ADJ", "VERB", "ADV"]
     )
 
-    # print(data_lemmatized[:1])
+    print(data_lemmatized[:1])
 
     dictionary = corpora.Dictionary(data_lemmatized)
     dictionary.filter_extremes(no_below=10, no_above=0.1)
@@ -116,7 +120,9 @@ if __name__ == "__main__":
     ldamallet = gensim.models.wrappers.LdaMallet(
         mallet_path, corpus=corpus, num_topics=20, id2word=dictionary
     )
-    ldamallet.save("model/mallet_model.lda")
+    lda_native = malletmodel2ldamodel(ldamallet)
+    lda_native.save("model/mallet_to_native.lda")
+
     corpora.Dictionary.save(dictionary, "model/dictionary.dict")
     corpora.BleiCorpus.save_corpus(fname="model/corpus.lda-c", corpus=corpus)
     bigram.save("model/bigram.phs")
